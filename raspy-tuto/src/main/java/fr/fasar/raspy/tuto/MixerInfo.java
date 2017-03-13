@@ -1,4 +1,4 @@
-package fr.fasar.raspy.app;
+package fr.fasar.raspy.tuto;
 
 import javax.sound.sampled.AudioSystem;
 import javax.sound.sampled.Line;
