@@ -3,8 +3,8 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
-    <name>raspy-core</name>
-    <artifactId>raspy-core</artifactId>
+    <name>raspy-appstandalone</name>
+    <artifactId>raspy-appstandalone</artifactId>
     <parent>
         <groupId>fr.fasar</groupId>
         <artifactId>raspy-parent</artifactId>
