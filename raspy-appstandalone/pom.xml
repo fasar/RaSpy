@@ -15,6 +15,11 @@
 
     <dependencies>
         <dependency>
+            <groupId>ch.qos.logback</groupId>
+            <artifactId>logback-classic</artifactId>
+        </dependency>
+
+        <dependency>
             <groupId>fr.fasar</groupId>
             <artifactId>raspy-core</artifactId>
             <version>${project.version}</version>

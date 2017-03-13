@@ -1,14 +1,12 @@
 package fr.fasar.raspy.services;
 
-import java.time.Instant;
+import java.io.IOException;
 
 /**
  * Created by Sartor on 13.03.2017.
  */
 public interface SoundRecorder {
 
-    public void start(Instant instant);
-
-    public void stop(Instant instant);
+    public void addBuffer(byte[] buffer, int offset, int size) throws IOException;
 
 }

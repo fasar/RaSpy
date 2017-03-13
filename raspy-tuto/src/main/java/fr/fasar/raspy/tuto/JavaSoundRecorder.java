@@ -9,10 +9,10 @@ import java.io.*;
  */
 public class JavaSoundRecorder {
     // record duration, in milliseconds
-    static final long RECORD_TIME = 60000;  // 1 minute
+    static final long RECORD_TIME = 10000;  // 1 minute
 
     // path of the wav file
-    File wavFile = new File("C:/work/RecordAudio.wav");
+    File wavFile = new File("C:\\work\\sandbox\\JAVA\\raspy\\outfile\\RecordAudio.wav");
 
     // format of audio file
     AudioFileFormat.Type fileType = AudioFileFormat.Type.WAVE;
@@ -26,9 +26,9 @@ public class JavaSoundRecorder {
     AudioFormat getAudioFormat() {
         float sampleRate = 16000;
         int sampleSizeInBits = 8;
-        int channels = 2;
+        int channels = 1;
         boolean signed = true;
-        boolean bigEndian = true;
+        boolean bigEndian = false;
         AudioFormat format = new AudioFormat(sampleRate, sampleSizeInBits,
                 channels, signed, bigEndian);
         return format;
