@@ -2,6 +2,7 @@ package fr.fasar.raspy;
 
 import com.google.common.util.concurrent.ListeningScheduledExecutorService;
 import com.google.common.util.concurrent.MoreExecutors;
+import fr.fasar.raspy.services.NoiseDetector;
 import fr.fasar.raspy.services.ServiceException;
 import fr.fasar.raspy.services.SoundBuffer;
 import fr.fasar.raspy.services.impl.SoundRecorderImpl;
@@ -12,7 +13,6 @@ import javax.sound.sampled.*;
 import java.io.File;
 import java.io.IOException;
 import java.time.Duration;
-import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.concurrent.Executors;
 
@@ -34,11 +34,17 @@ public class Main {
         outPath.mkdirs();
         int oneSecondSamplesNb = Math.round((format.getSampleRate() * format.getChannels() * format.getFrameSize()));
 
-        // Create the Noise Detector
 
 
         // Create the service to output wave.
-        SoundRecorderImpl soundRecorder = new SoundRecorderImpl(scheduledExecutorService, soundBuffer, outPath, Duration.of(1, ChronoUnit.SECONDS), format);
+        SoundRecorderImpl soundRecorder = new SoundRecorderImpl(
+                scheduledExecutorService, soundBuffer, outPath,
+                Duration.of(5, ChronoUnit.SECONDS),
+                Duration.of(15, ChronoUnit.SECONDS),
+                format);
+
+        // Create the Noise Detector
+        NoiseDetector noiseDetector = new NoiseDetector(soundRecorder);
 
 
         //Open the mic.
@@ -60,16 +66,8 @@ public class Main {
 
         for (int i = 0; i < 20; i++) {
             int read = ais.read(buffer, 0, oneSecondSamplesNb);
+            noiseDetector.addBuffer(buffer, 0, read);
             soundRecorder.addBuffer(buffer, 0, read);
-            if(i == 2) {
-                LOG.debug("Start recording the wave.");
-                soundRecorder.startNoise(Instant.now());
-            }
-
-            if (i == 10) {
-                LOG.debug("End recording the wave.");
-                soundRecorder.stopNoise(Instant.now());
-            }
         }
 
 
