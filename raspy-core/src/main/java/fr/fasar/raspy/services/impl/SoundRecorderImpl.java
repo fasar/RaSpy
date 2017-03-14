@@ -1,12 +1,14 @@
 package fr.fasar.raspy.services.impl;
 
-import com.google.common.util.concurrent.*;
+import com.google.common.util.concurrent.FutureCallback;
+import com.google.common.util.concurrent.Futures;
+import com.google.common.util.concurrent.ListenableScheduledFuture;
+import com.google.common.util.concurrent.ListeningScheduledExecutorService;
 import fr.fasar.raspy.services.NoiseListener;
 import fr.fasar.raspy.services.ServiceException;
 import fr.fasar.raspy.services.SoundBuffer;
 import fr.fasar.raspy.services.SoundRecorder;
 import fr.fasar.raspy.sound.WaveWriter;
-import org.apache.commons.lang3.ArrayUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -17,6 +19,8 @@ import java.io.IOException;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -32,7 +36,7 @@ public class SoundRecorderImpl implements SoundRecorder, NoiseListener {
 
     private Duration windowStop = Duration.of(15, ChronoUnit.SECONDS);
     private Duration windowDetection = Duration.of(5, ChronoUnit.SECONDS);
-    private final SoundBuffer soundBuffer;
+    private final List<byte[]> soundBuffer = new ArrayList<>();
 
     private AtomicReference<State> state = new AtomicReference<>(State.DISCARD);
 
@@ -59,12 +63,6 @@ public class SoundRecorderImpl implements SoundRecorder, NoiseListener {
         this.windowDetection = windowDetection;
         this.windowStop = windowStop;
         this.audioFormat = audioFormat;
-        this.soundBuffer = new SoundBuffer(
-                (int) Math.max(windowDetection.getSeconds(), windowStop.getSeconds()),
-                Math.round(audioFormat.getFrameRate()),
-                Math.round(audioFormat.getFrameSize()));
-
-
     }
 
     @Override
@@ -72,7 +70,7 @@ public class SoundRecorderImpl implements SoundRecorder, NoiseListener {
         switch (state.get()) {
             case DISCARD:
                 LOG.debug("(GOTO {}) Detecting noise for the first time at {}", State.DETECT_NOISE, instant);
-                state.set(State.DETECT_NOISE);
+                changeState(State.DETECT_NOISE, "start");
                 final long currentTimeMillis = System.currentTimeMillis();
 
                 // Create the output file
@@ -90,18 +88,22 @@ public class SoundRecorderImpl implements SoundRecorder, NoiseListener {
                                 throw new RuntimeException(e);
                             }
                             // Write data in the buffer.
-                            final Byte[] objects;
+                            final byte[][] objects;
                             synchronized (soundBuffer) {
-                                objects = (Byte[]) soundBuffer.toArray();
-                                soundBuffer.clear();
-                            }
-                            synchronized (lockWriter) {
-                                try {
-                                    waveWriter.write(ArrayUtils.toPrimitive(objects), 0, objects.length);
-                                } catch (IOException e) {
-                                    LOG.error("Can't write the buffer on the file {}", out.getAbsolutePath());
+                                if (!soundBuffer.isEmpty()) {
+                                    synchronized (lockWriter) {
+                                        try {
+                                            for (byte[] bytes : soundBuffer) {
+                                                waveWriter.write(bytes, 0, bytes.length);
+                                            }
+                                        } catch (IOException e) {
+                                            LOG.error("Can't write buffer on wave", e);
+                                        }
+                                    }
+                                    soundBuffer.clear();
                                 }
                             }
+
                         }
                     }, windowDetection.get(ChronoUnit.SECONDS), TimeUnit.SECONDS);
 
@@ -109,13 +111,13 @@ public class SoundRecorderImpl implements SoundRecorder, NoiseListener {
                         @Override
                         public void onSuccess(Object result) {
                             LOG.debug("Task to confirm noise is success");
-                            state.set(State.WRITING);
+                            changeState(State.WRITING, "T+winDet");
                         }
 
                         @Override
                         public void onFailure(Throwable t) {
-                            LOG.debug("Task to confirm noise fails");
-                            state.set(State.DISCARD);
+                            LOG.debug("Task to confirm noise fails", t);
+                            changeState(State.DISCARD, "T+winDetFail");
                             finishOutput();
                         }
                     });
@@ -124,7 +126,7 @@ public class SoundRecorderImpl implements SoundRecorder, NoiseListener {
             case DETECT_SILENCE:
 
                 synchronized (lockTask) {
-                    if(task != null) {
+                    if (task != null) {
                         task.cancel(true);
 
                         Futures.addCallback(task, new FutureCallback<Object>() {
@@ -135,8 +137,7 @@ public class SoundRecorderImpl implements SoundRecorder, NoiseListener {
 
                             @Override
                             public void onFailure(Throwable t) {
-                                logChangeState(State.WRITING);
-                                state.set(State.WRITING);
+                                changeState(State.WRITING, "start(timeout)");
                             }
                         });
                     }
@@ -170,7 +171,9 @@ public class SoundRecorderImpl implements SoundRecorder, NoiseListener {
         synchronized (lockWriter) {
             if (waveWriter != null) {
                 try {
+                    LOG.debug("Finish waveWriter");
                     waveWriter.closeWaveFile();
+                    waveWriter = null;
                 } catch (IOException e) {
                     LOG.error("Can't close the file");
                 }
@@ -182,26 +185,24 @@ public class SoundRecorderImpl implements SoundRecorder, NoiseListener {
     public void stopNoise(Instant instant) throws ServiceException {
         switch (state.get()) {
             case DETECT_NOISE:
-                logChangeState(State.DISCARD);
                 LOG.debug("(GOTO {}) Detecting silence during the detection window of {} seconds.", State.DISCARD, windowDetection.get(ChronoUnit.SECONDS));
                 synchronized (lockTask) {
-                    if(task != null) {
-                        task.cancel(true);
+                    if (task != null) {
+                        if (!task.isCancelled() && !task.isDone()) {
+                            task.cancel(true);
+                        }
                         task = null;
                     }
                 }
-                state.set(State.DISCARD);
+                changeState(State.DISCARD, "stop");
                 break;
             case WRITING:
-                logChangeState(State.DETECT_SILENCE);
-                state.set(State.DETECT_SILENCE);
+                changeState(State.DETECT_SILENCE, "stop");
 
                 synchronized (lockTask) {
                     task = scheduledExecutorService.schedule(() -> {
                         LOG.debug("End of the task of waiting for silence detection");
-                        if(state.get() == State.DETECT_SILENCE) {
-
-                        } else {
+                        if (state.get() != State.DETECT_SILENCE) {
                             throw new RuntimeException();
                         }
                     }, windowStop.get(ChronoUnit.SECONDS), TimeUnit.SECONDS);
@@ -210,8 +211,7 @@ public class SoundRecorderImpl implements SoundRecorder, NoiseListener {
                         @Override
                         public void onSuccess(Object result) {
                             LOG.debug("Task to wait silence is success");
-                            logChangeState(State.DISCARD);
-                            state.set(State.DISCARD);
+                            changeState(State.DISCARD, "t+winStop");
                             finishOutput();
                         }
 
@@ -225,10 +225,8 @@ public class SoundRecorderImpl implements SoundRecorder, NoiseListener {
                 break;
             case DETECT_SILENCE:
             case DISCARD:
-                logChangeState(state.get());
                 break;
         }
-
 
         WaveWriter currentWaveWriter = null;
         synchronized (lockTask) {
@@ -247,16 +245,19 @@ public class SoundRecorderImpl implements SoundRecorder, NoiseListener {
         }
     }
 
-    private void logChangeState(State newState) {
-        LOG.debug("({} -> {})", state.get(), newState);
+    private void changeState(State newState, String action) {
+        LOG.debug("({} -{}-> {}) ", state.get(), action, newState);
+        state.set(newState);
     }
 
     @Override
     public void addBuffer(byte[] buffer, int offset, int size) throws IOException {
         switch (state.get()) {
-            case DISCARD:
             case DETECT_NOISE:
+
+
             case WRITING:
+            case DISCARD:
             case DETECT_SILENCE:
         }
 
