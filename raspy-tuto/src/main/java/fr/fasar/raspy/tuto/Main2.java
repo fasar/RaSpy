@@ -1,4 +1,4 @@
-package fr.fasar.raspy.maison;
+package fr.fasar.raspy.tuto;
 
 import javax.sound.sampled.*;
 import java.util.Arrays;
