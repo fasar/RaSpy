@@ -128,6 +128,7 @@ public class SoundRecorderImpl implements SoundRecorder, NoiseListener {
                 synchronized (lockTask) {
                     if (task != null) {
                         task.cancel(true);
+                        task = null;
 
                         Futures.addCallback(task, new FutureCallback<Object>() {
                             @Override
