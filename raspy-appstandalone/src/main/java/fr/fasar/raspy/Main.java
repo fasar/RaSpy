@@ -5,6 +5,7 @@ import com.google.common.util.concurrent.MoreExecutors;
 import fr.fasar.raspy.services.NoiseDetector;
 import fr.fasar.raspy.services.ServiceException;
 import fr.fasar.raspy.services.SoundBuffer;
+import fr.fasar.raspy.services.impl.SoundCompress;
 import fr.fasar.raspy.services.impl.SoundRecorderImpl;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -40,8 +41,8 @@ public class Main {
         SoundRecorderImpl soundRecorder = new SoundRecorderImpl(
                 scheduledExecutorService, soundBuffer, outPath,
                 Duration.of(2, ChronoUnit.SECONDS),
-                Duration.of(2, ChronoUnit.SECONDS),
-                format);
+                Duration.of(10, ChronoUnit.SECONDS),
+                format, new SoundCompress(scheduledExecutorService));
 
         // Create the Noise Detector
         NoiseDetector noiseDetector = new NoiseDetector(soundRecorder);

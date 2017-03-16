@@ -4,10 +4,7 @@ import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableScheduledFuture;
 import com.google.common.util.concurrent.ListeningScheduledExecutorService;
-import fr.fasar.raspy.services.NoiseListener;
-import fr.fasar.raspy.services.ServiceException;
-import fr.fasar.raspy.services.SoundBuffer;
-import fr.fasar.raspy.services.SoundRecorder;
+import fr.fasar.raspy.services.*;
 import fr.fasar.raspy.sound.WaveWriter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -46,6 +43,7 @@ public class SoundRecorderImpl implements SoundRecorder, NoiseListener {
     private final Object lockWriter = new Object();
     private final Object lockTask = new Object();
     private ListenableScheduledFuture<?> task;
+    private SoundCreation soundCreation;
 
 
     @Inject
@@ -55,8 +53,10 @@ public class SoundRecorderImpl implements SoundRecorder, NoiseListener {
             File basePath,
             Duration windowDetection,
             Duration windowStop,
-            AudioFormat audioFormat
+            AudioFormat audioFormat,
+            SoundCreation soundCreation
     ) {
+        this.soundCreation = soundCreation;
         if (!basePath.isDirectory()) {
             throw new IllegalArgumentException("basePath must be a folder");
         }
@@ -218,12 +218,17 @@ public class SoundRecorderImpl implements SoundRecorder, NoiseListener {
                         LOG.debug("End of the task of waiting for silence detection");
                     }, windowStop.get(ChronoUnit.SECONDS), TimeUnit.SECONDS);
 
+                    final SoundCreation localSoundCreation = soundCreation;
                     Futures.addCallback(task, new FutureCallback<Object>() {
                         @Override
                         public void onSuccess(Object result) {
                             LOG.debug("Task to wait silence is success");
                             changeState(State.DISCARD, "t+winStop");
+                            File outFile = waveWriter.getmOutFile();
                             finishOutput();
+                            if(localSoundCreation!=null) {
+                                localSoundCreation.newSound(outFile);
+                            }
                         }
 
                         @Override

@@ -33,6 +33,10 @@ public class WaveWriter {
     private int mBytesWritten;
 
 
+    public File getmOutFile() {
+        return mOutFile;
+    }
+
     /**
      * Constructor; initializes WaveWriter with file name and path
      *
