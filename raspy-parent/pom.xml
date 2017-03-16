@@ -6,6 +6,7 @@
     <packaging>pom</packaging>
     <modules>
         <module>../raspy-tuto</module>
+        <module>../raspy-core</module>
     </modules>
 
     <groupId>fr.fasar</groupId>

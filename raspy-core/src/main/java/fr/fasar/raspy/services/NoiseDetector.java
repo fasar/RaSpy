@@ -23,7 +23,7 @@ public class NoiseDetector implements SoundRecorder {
     public void addBuffer(byte[] buffer, int offset, int size) throws IOException {
         final double rms = volumeRMS(buffer);
         try {
-            if (rms > 85.0) {
+            if (rms > 87.0) {
                 LOG.debug("Noide detection of {}", rms);
                 noiseListener.startNoise(Instant.now());
             } else {

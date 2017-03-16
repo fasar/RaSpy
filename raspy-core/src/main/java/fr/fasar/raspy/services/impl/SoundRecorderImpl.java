@@ -20,6 +20,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -36,7 +37,8 @@ public class SoundRecorderImpl implements SoundRecorder, NoiseListener {
 
     private Duration windowStop = Duration.of(15, ChronoUnit.SECONDS);
     private Duration windowDetection = Duration.of(5, ChronoUnit.SECONDS);
-    private final List<byte[]> soundBuffer = new ArrayList<>();
+    private final List<SoundSample> soundBuffer = new ArrayList<SoundSample>();
+    private int soundBufferSize = 0;
 
     private AtomicReference<State> state = new AtomicReference<>(State.DISCARD);
 
@@ -70,8 +72,11 @@ public class SoundRecorderImpl implements SoundRecorder, NoiseListener {
         switch (state.get()) {
             case DISCARD:
                 LOG.debug("(GOTO {}) Detecting noise for the first time at {}", State.DETECT_NOISE, instant);
-                changeState(State.DETECT_NOISE, "start");
                 final long currentTimeMillis = System.currentTimeMillis();
+                synchronized (soundBuffer) {
+                    soundBuffer.clear();
+                    soundBufferSize = 0;
+                }
 
                 // Create the output file
                 // Write data in the buffer.
@@ -88,19 +93,20 @@ public class SoundRecorderImpl implements SoundRecorder, NoiseListener {
                                 throw new RuntimeException(e);
                             }
                             // Write data in the buffer.
-                            final byte[][] objects;
                             synchronized (soundBuffer) {
                                 if (!soundBuffer.isEmpty()) {
                                     synchronized (lockWriter) {
                                         try {
-                                            for (byte[] bytes : soundBuffer) {
-                                                waveWriter.write(bytes, 0, bytes.length);
+                                            LOG.debug("I will write {} elements", soundBuffer.size());
+                                            for (SoundSample soundSample : soundBuffer) {
+                                                waveWriter.write(soundSample.getBuffer(), soundSample.getOffset(), soundSample.getSize());
                                             }
                                         } catch (IOException e) {
                                             LOG.error("Can't write buffer on wave", e);
                                         }
                                     }
                                     soundBuffer.clear();
+                                    soundBufferSize = 0;
                                 }
                             }
 
@@ -122,14 +128,16 @@ public class SoundRecorderImpl implements SoundRecorder, NoiseListener {
                         }
                     });
                 }
+
+                changeState(State.DETECT_NOISE, "start");
+
+
                 break;
             case DETECT_SILENCE:
 
                 synchronized (lockTask) {
                     if (task != null) {
-                        task.cancel(true);
-                        task = null;
-
+                        task.cancel(false);
                         Futures.addCallback(task, new FutureCallback<Object>() {
                             @Override
                             public void onSuccess(Object result) {
@@ -138,9 +146,11 @@ public class SoundRecorderImpl implements SoundRecorder, NoiseListener {
 
                             @Override
                             public void onFailure(Throwable t) {
+                                LOG.debug("The wait silence is abord. Continue to wrting state.");
                                 changeState(State.WRITING, "start(timeout)");
                             }
                         });
+                        task = null;
                     }
 
                 }
@@ -163,7 +173,6 @@ public class SoundRecorderImpl implements SoundRecorder, NoiseListener {
                 LOG.debug("Noise start at : {}", instant);
                 waveWriter = new WaveWriter(out, sampleRate, channels, sampleBits);
                 waveWriter.createWaveFile();
-                waveWriter = null;
             }
         }
     }
@@ -186,11 +195,15 @@ public class SoundRecorderImpl implements SoundRecorder, NoiseListener {
     public void stopNoise(Instant instant) throws ServiceException {
         switch (state.get()) {
             case DETECT_NOISE:
-                LOG.debug("(GOTO {}) Detecting silence during the detection window of {} seconds.", State.DISCARD, windowDetection.get(ChronoUnit.SECONDS));
+                LOG.debug("(GOTO {}) Detecting silence during the noise detection window of {} seconds.", State.DISCARD, windowDetection.get(ChronoUnit.SECONDS));
                 synchronized (lockTask) {
                     if (task != null) {
                         if (!task.isCancelled() && !task.isDone()) {
-                            task.cancel(true);
+                            try {
+                                task.cancel(false);
+                            } catch (Throwable e) {
+                                LOG.error("Can't stop the task", e);
+                            }
                         }
                         task = null;
                     }
@@ -203,9 +216,6 @@ public class SoundRecorderImpl implements SoundRecorder, NoiseListener {
                 synchronized (lockTask) {
                     task = scheduledExecutorService.schedule(() -> {
                         LOG.debug("End of the task of waiting for silence detection");
-                        if (state.get() != State.DETECT_SILENCE) {
-                            throw new RuntimeException();
-                        }
                     }, windowStop.get(ChronoUnit.SECONDS), TimeUnit.SECONDS);
 
                     Futures.addCallback(task, new FutureCallback<Object>() {
@@ -229,21 +239,6 @@ public class SoundRecorderImpl implements SoundRecorder, NoiseListener {
                 break;
         }
 
-        WaveWriter currentWaveWriter = null;
-        synchronized (lockTask) {
-            if (waveWriter != null) {
-                currentWaveWriter = this.waveWriter;
-                this.waveWriter = null;
-            }
-        }
-
-        if (currentWaveWriter != null) {
-            try {
-                currentWaveWriter.closeWaveFile();
-            } catch (IOException e) {
-                throw new ServiceException("Can't write the wave file", e);
-            }
-        }
     }
 
     private void changeState(State newState, String action) {
@@ -255,17 +250,26 @@ public class SoundRecorderImpl implements SoundRecorder, NoiseListener {
     public void addBuffer(byte[] buffer, int offset, int size) throws IOException {
         switch (state.get()) {
             case DETECT_NOISE:
-
-
-            case WRITING:
-            case DISCARD:
+                synchronized (soundBuffer) {
+                    byte[] bytes = Arrays.copyOf(buffer, size + offset);
+                    SoundSample soundSample = new SoundSample(bytes, offset, size);
+                    soundBuffer.add(soundSample);
+                    soundBufferSize++;
+                    LOG.debug("Buffering the  {} element", soundBufferSize);
+                }
+                break;
             case DETECT_SILENCE:
-        }
-
-        if (waveWriter != null) {
-            synchronized (waveWriter) {
-                waveWriter.write(buffer, offset, size);
-            }
+            case WRITING:
+                if (waveWriter != null) {
+                    LOG.debug("Writing bis");
+                    synchronized (waveWriter) {
+                        waveWriter.write(buffer, offset, size);
+                    }
+                } else {
+                    LOG.debug("No Writer to write");
+                }
+                break;
+            case DISCARD:
         }
 
 

@@ -39,8 +39,8 @@ public class Main {
         // Create the service to output wave.
         SoundRecorderImpl soundRecorder = new SoundRecorderImpl(
                 scheduledExecutorService, soundBuffer, outPath,
-                Duration.of(5, ChronoUnit.SECONDS),
-                Duration.of(15, ChronoUnit.SECONDS),
+                Duration.of(2, ChronoUnit.SECONDS),
+                Duration.of(2, ChronoUnit.SECONDS),
                 format);
 
         // Create the Noise Detector
@@ -64,13 +64,16 @@ public class Main {
         AudioInputStream ais = new AudioInputStream(line);
         byte[] buffer = new byte[oneSecondSamplesNb];
 
-        for (int i = 0; i < 20; i++) {
+        boolean run = true;
+        while(run) {
             int read = ais.read(buffer, 0, oneSecondSamplesNb);
-            noiseDetector.addBuffer(buffer, 0, read);
-            soundRecorder.addBuffer(buffer, 0, read);
+            try {
+                noiseDetector.addBuffer(buffer, 0, read);
+                soundRecorder.addBuffer(buffer, 0, read);
+            } catch (Exception e) {
+                LOG.error("Can't handle the sample", e);
+            }
         }
-
-
 
     }
 
