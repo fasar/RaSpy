@@ -9,7 +9,6 @@
         <groupId>fr.fasar</groupId>
         <artifactId>raspy-parent</artifactId>
         <version>1.0-SNAPSHOT</version>
-        <relativePath>../raspy-parent/pom.xml</relativePath>
     </parent>
     <packaging>jar</packaging>
 

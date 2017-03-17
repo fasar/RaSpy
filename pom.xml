@@ -5,9 +5,9 @@
     <modelVersion>4.0.0</modelVersion>
     <packaging>pom</packaging>
     <modules>
-        <module>../raspy-tuto</module>
-        <module>../raspy-core</module>
-        <module>../raspy-appstandalone</module>
+        <module>raspy-tuto</module>
+        <module>raspy-core</module>
+        <module>raspy-appstandalone</module>
     </modules>
 
     <groupId>fr.fasar</groupId>
@@ -34,13 +34,18 @@
     <dependencyManagement>
         <dependencies>
             <dependency>
-                <groupId>fr.fasar</groupId>
+				<groupId>${project.groupId}</groupId>
                 <artifactId>raspy-core</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
-                <groupId>fr.fasar</groupId>
+				<groupId>${project.groupId}</groupId>
                 <artifactId>raspy-appstandalone</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+				<groupId>${project.groupId}</groupId>
+                <artifactId>raspy-tuto</artifactId>
                 <version>${project.version}</version>
             </dependency>
 
