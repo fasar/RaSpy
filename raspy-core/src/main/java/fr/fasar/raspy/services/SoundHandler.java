@@ -5,7 +5,7 @@ import java.io.IOException;
 /**
  * Created by Sartor on 13.03.2017.
  */
-public interface SoundRecorder {
+public interface SoundHandler {
 
     public void addBuffer(byte[] buffer, int offset, int size) throws IOException;
 

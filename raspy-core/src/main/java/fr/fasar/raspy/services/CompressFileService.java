@@ -4,17 +4,21 @@ import org.apache.commons.exec.*;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.HashMap;
 
 /**
  * Created by fabien on 16/03/2017.
  */
-public class CompressFile {
+public class CompressFileService {
 
-    static String ENC_CMD = "C:\\Utils\\oggenc\\oggenc2.exe";
+    private String appPath;
 
-    public static void compress(File file) throws IOException, InterruptedException {
-        CommandLine cmdLine = new CommandLine(ENC_CMD);
+    public CompressFileService(String apppath) {
+        this.appPath = apppath;
+    }
+
+
+    public void compress(File file) throws IOException, InterruptedException {
+        CommandLine cmdLine = new CommandLine(appPath);
         cmdLine.addArgument("-o");
         cmdLine.addArgument(file.getAbsolutePath().replace(".wav", ".ogg"));
         cmdLine.addArgument(file.getAbsolutePath());
@@ -27,12 +31,9 @@ public class CompressFile {
         executor.setWatchdog(watchdog);
         executor.execute(cmdLine, resultHandler);
 
-    // some time later the result handler callback was invoked so we
-    // can safely request the exit value
-        resultHandler.waitFor();
+        // some time later the result handler callback was invoked so we
+        // can safely request the exit value
+        resultHandler.waitFor(100_000);
     }
 
-    public static void main(String[] args) throws IOException, InterruptedException {
-        compress(new File("C:\\work\\git\\RaSpy\\outfile\\1489701090163.wav"));
-    }
 }

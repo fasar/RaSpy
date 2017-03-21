@@ -8,6 +8,7 @@
         <module>raspy-tuto</module>
         <module>raspy-core</module>
         <module>raspy-appstandalone</module>
+        <module>raspy-deploy</module>
     </modules>
 
     <groupId>fr.fasar</groupId>

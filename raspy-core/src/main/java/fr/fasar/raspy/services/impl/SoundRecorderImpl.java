@@ -25,8 +25,8 @@ import java.util.concurrent.atomic.AtomicReference;
 /**
  * Created by Sartor on 13.03.2017.
  */
-public class SoundRecorderImpl implements SoundRecorder, NoiseListener {
-    private static Logger LOG = LoggerFactory.getLogger(SoundRecorder.class);
+public class SoundRecorderImpl implements SoundHandler, NoiseListener {
+    private static Logger LOG = LoggerFactory.getLogger(SoundHandler.class);
 
     private ListeningScheduledExecutorService scheduledExecutorService;
     private final File basePath;
@@ -266,12 +266,12 @@ public class SoundRecorderImpl implements SoundRecorder, NoiseListener {
             case DETECT_SILENCE:
             case WRITING:
                 if (waveWriter != null) {
-                    LOG.debug("Writing bis");
+                    LOG.trace("Writing in the file");
                     synchronized (waveWriter) {
                         waveWriter.write(buffer, offset, size);
                     }
                 } else {
-                    LOG.debug("No Writer to write");
+                    LOG.info("No Writer to write");
                 }
                 break;
             case DISCARD:
